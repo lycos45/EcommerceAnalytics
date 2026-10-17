@@ -1,0 +1,22 @@
+# sbt / build
+target/
+project/target/
+project/project/
+.bsp/
+
+# IDE
+.idea/
+.vscode/
+.metals/
+.bloop/
+*.iml
+
+# sorties du pipeline
+output/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS
+.DS_Store
+Thumbs.db
