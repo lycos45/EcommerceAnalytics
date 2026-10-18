@@ -41,5 +41,10 @@ class DataIngestionTest extends AnyFunSuite with BeforeAndAfterAll {
 
     assert(taux.keySet == Set("transactions", "users", "products", "merchants"))
     assert(taux.values.forall(_ > 0.0), s"un taux de rejet a 0 % : $taux")
+
+    // le rapport doit pouvoir etre relu depuis le CSV ecrit
+    new DataValidation(spark).saveQualityReport(validated.qualityReport, "target/test-output")
+    val relu = spark.read.option("header", "true").csv("target/test-output/quality_report")
+    assert(relu.count() == 4)
   }
 }
