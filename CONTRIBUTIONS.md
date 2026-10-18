@@ -27,7 +27,15 @@
 ### Membre A – COLY Ousmane
 - Temps passé : à compléter
 - Difficultés :
-  - à compléter
+  - `users.json` : Spark infère `age` en `Long` alors que la case class attend un `Int`, et `.as[User]`
+    refuse la conversion. Résolu en imposant un schéma explicite à la lecture du JSON.
+  - `merchants.csv` : avec `inferSchema`, `establishment_date` (yyyyMMdd) est lu comme un entier.
+    Il a fallu le recaster en `String` avant de passer en `Dataset[Merchant]`.
+  - Valeurs nulles dans les colonnes numériques : la conversion en `Dataset[T]` échouait avec des
+    `Double` / `Int` simples, d'où le passage en `Option`.
+  - Écriture du rapport CSV impossible sous Windows (`UnsatisfiedLinkError NativeIO$Windows`) :
+    le `hadoop.dll` installé ne correspondait pas à la version Hadoop tirée par Spark 4.0.1.
+    Corrigé en alignant `build.sbt` sur Spark 4.2.0, la version installée sur le poste.
 
 ### Membre B
 - Temps passé : à compléter
@@ -41,9 +49,10 @@
 
 ## Décisions techniques du groupe
 
-1. **Spark 4 / Scala 2.13 / Java 17.**
-   Spark 4 n'est plus publié pour Scala 2.12, donc on est passé en 2.13. Java 17 est la version
-   LTS supportée par Spark 4 et celle installée sur nos postes.
+1. **Spark 4.2.0 / Scala 2.13 / Java 17.**
+   Spark 4 n'est plus publié pour Scala 2.12, donc on est passé en 2.13. On compile avec la même
+   version de Spark que celle utilisée par spark-submit pour éviter les écarts de dépendances
+   (on a eu un problème avec Hadoop sous Windows en 4.0.1). Java 17 est la LTS supportée par Spark 4.
 
 2. **JAR construit avec sbt-assembly.**
    `sbt package` ne contient que nos classes, il manquerait Typesafe Config au lancement.
@@ -57,9 +66,14 @@
    Les fichiers contiennent des valeurs nulles : avec un `Double` simple, la conversion en
    `Dataset[T]` plante. `Option` permet de garder ces lignes et de les rejeter proprement à la validation.
 
-5. **Stratégie de jointure** : à compléter par B (question 3.2).
+5. **Lignes rejetées conservées avec toutes les règles violées.**
+   Chaque fonction de validation renvoie un `ValidationResult` (valides + rejetées). La colonne
+   `rejection_reason` liste toutes les règles non respectées (pas seulement la première), ce qui
+   aide à comprendre les anomalies. Le rapport de qualité est calculé sur les données brutes.
 
-6. **Format de sortie** : à compléter par C.
+6. **Stratégie de jointure** : à compléter par B (question 3.2).
+
+7. **Format de sortie** : à compléter par C.
 
 ## Relectures croisées
 
