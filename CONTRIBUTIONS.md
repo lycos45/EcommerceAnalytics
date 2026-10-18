@@ -29,10 +29,12 @@
 - Difficultés :
   - à compléter
 
-### Membre B
-- Temps passé : à compléter
+### Membre B – CISSOKO Djely Kanny
+- Temps passé : environ 10 heures (UDF, jointures, fenêtrage, tests, Git)
 - Difficultés :
-  - à compléter
+  - Installer et configurer Git, Java et sbt sous Windows (PATH, PowerShell).
+  - Comprendre les fonctions de fenêtrage (rangeBetween sur 7 jours, lag).
+  - Gérer les valeurs nulles et les timestamps invalides dans l'UDF.
 
 ### Membre C
 - Temps passé : à compléter
@@ -57,7 +59,18 @@
    Les fichiers contiennent des valeurs nulles : avec un `Double` simple, la conversion en
    `Dataset[T]` plante. `Option` permet de garder ces lignes et de les rejeter proprement à la validation.
 
-5. **Stratégie de jointure** : à compléter par B (question 3.2).
+5. **Stratégie de jointure (Q3.2) : LEFT JOIN depuis les transactions.**
+   La table `transactions` est la table de faits. Elle reçoit trois LEFT JOIN (users, products, merchants),
+   avec `broadcast()` sur les trois petites tables.
+   Un INNER JOIN supprimerait les transactions dont le user_id, le product_id ou le merchant_id n'existe
+   pas, donc du chiffre d'affaires. Avec LEFT JOIN on garde ces lignes : la tranche d'âge vaut « Inconnu »
+   et les KPI marchands (Membre C) filtrent ensuite `merchant_name IS NOT NULL`.
+
+   Autres décisions de la partie 3 :
+   - L'âge de 25 ans n'est couvert par aucune tranche dans le sujet : on le range dans « Jeune ».
+   - L'UDF renvoie `null` (sans exception) si le timestamp est nul, vide ou impossible (ex. mois 13).
+   - « Utilisateur actif » : `collect_set` des jours sur 7 jours glissants, au moins 5 jours distincts.
+   - « Dépasse de plus de 300 % » signifie : montant supérieur à 4 fois le panier moyen de l'utilisateur.
 
 6. **Format de sortie** : à compléter par C.
 
