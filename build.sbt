@@ -35,6 +35,8 @@ run / fork := true
 run / javaOptions ++= sparkJavaOpts
 Test / fork := true
 Test / javaOptions ++= sparkJavaOpts
+// une seule SparkSession a la fois pendant les tests
+Test / parallelExecution := false
 
 Compile / mainClass := Some("com.ecommerce.analytics.MainApp")
 
