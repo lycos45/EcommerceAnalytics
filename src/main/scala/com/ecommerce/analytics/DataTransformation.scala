@@ -50,7 +50,7 @@ class DataTransformation {
       .withColumn("is_weekend", col("time_features.is_weekend"))
       .withColumn("day_period", col("time_features.day_period"))
       .withColumn("is_working_hours", col("time_features.is_working_hours"))
-      .withColumn("transaction_ts", to_timestamp(col("timestamp"), "yyyyMMddHHmmss"))
+      .withColumn("transaction_ts", try_to_timestamp(col("timestamp"), lit("yyyyMMddHHmmss")))
       .withColumn("transaction_date", to_date(col("transaction_ts")))
 
     // Fenêtres par utilisateur
