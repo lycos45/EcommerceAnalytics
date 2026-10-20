@@ -37,10 +37,12 @@
     le `hadoop.dll` installé ne correspondait pas à la version Hadoop tirée par Spark 4.0.1.
     Corrigé en alignant `build.sbt` sur Spark 4.2.0, la version installée sur le poste.
 
-### Membre B
-- Temps passé : à compléter
+### Membre B – CISSOKO Djely Kanny
+- Temps passé : environ 10 heures (UDF, jointures, fenêtrage, tests, Git)
 - Difficultés :
-  - à compléter
+  - Installer et configurer Git, Java et sbt sous Windows (PATH, PowerShell).
+  - Comprendre les fonctions de fenêtrage (rangeBetween sur 7 jours, lag).
+  - Gérer les valeurs nulles et les timestamps invalides dans l'UDF.
 
 ### Membre C
 - Temps passé : à compléter
@@ -71,7 +73,18 @@
    `rejection_reason` liste toutes les règles non respectées (pas seulement la première), ce qui
    aide à comprendre les anomalies. Le rapport de qualité est calculé sur les données brutes.
 
-6. **Stratégie de jointure** : à compléter par B (question 3.2).
+6. **Stratégie de jointure (Q3.2) : LEFT JOIN depuis les transactions.**
+   La table `transactions` est la table de faits. Elle reçoit trois LEFT JOIN (users, products, merchants),
+   avec `broadcast()` sur les trois petites tables.
+   Un INNER JOIN supprimerait les transactions dont le user_id, le product_id ou le merchant_id n'existe
+   pas, donc du chiffre d'affaires. Avec LEFT JOIN on garde ces lignes : la tranche d'âge vaut « Inconnu »
+   et les KPI marchands (Membre C) filtrent ensuite `merchant_name IS NOT NULL`.
+
+   Autres décisions de la partie 3 :
+   - L'âge de 25 ans n'est couvert par aucune tranche dans le sujet : on le range dans « Jeune ».
+   - L'UDF renvoie `null` (sans exception) si le timestamp est nul, vide ou impossible (ex. mois 13).
+   - « Utilisateur actif » : `collect_set` des jours sur 7 jours glissants, au moins 5 jours distincts.
+   - « Dépasse de plus de 300 % » signifie : montant supérieur à 4 fois le panier moyen de l'utilisateur.
 
 7. **Format de sortie** : à compléter par C.
 
@@ -79,4 +92,5 @@
 
 | Date | Module relu | Auteur | Relecteur | Remarques |
 |------|-------------|--------|-----------|-----------|
-| | | | | |
+| 2026-10-18 | Partie 3 : TimeFeatures, DataTransformation (PR #1) | B – CISSOKO Djely Kanny | A – COLY Ousmane | Testé avec l'ingestion et la validation sur les données réelles (136 157 transactions enrichies, tests TimeFeatures OK). Correction demandée : `to_timestamp` plante en mode ANSI sur une date impossible, remplacer par `try_to_timestamp`. Remarques : clés `app.analytics.*` à ajouter dans application.conf, broadcast déjà fait ici (à signaler pour la 5.2). |
+| 2026-10-20 | Partie 3 : correction (PR #1) | B – CISSOKO Djely Kanny | A – COLY Ousmane | Correction vérifiée : une date impossible ne fait plus échouer le job. PR fusionnée dans main. |

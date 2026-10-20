@@ -3,7 +3,7 @@
 | Membre | Nom Prénom | E-mail | `git config user.name` |
 |--------|------------|--------|------------------------|
 | A | COLY Ousmane | ousmanecoly543@gmail.com | ousmane coly |
-| B | À compléter | À compléter | À compléter |
+| B | CISSOKO Djely Kanny | djelykannycissoko3@gmail.com | Djely Kanny CISSOKO  |
 | C | À compléter | À compléter | À compléter |
 
 ## Rôles et questions traitées
@@ -14,8 +14,8 @@
 - Partie 7 : 7.1 application.conf
 - Fichiers : `build.sbt`, `models/*`, `utils/*`, `DataIngestion.scala`, `DataValidation.scala`, `application.conf`, `README.md`
 
-### Membre B – Data Transformation Engineer
-- Partie 3 : 3.1 UDF extractTimeFeatures, 3.2 enrichTransactionData, 3.3 fenêtrage
+### Membre B – Data Transformation Engineer (CISSOKO Djely Kanny)
+- Partie 3 : 3.1 UDF extractTimeFeatures, 3.2 enrichTransactionData, 3.3 fenêtrage, 3.4 transactions suspectes (bonus)
 - Fichiers : `TimeFeatures.scala`, `DataTransformation.scala`
 
 ### Membre C – Analytics & Performance Engineer
