@@ -25,7 +25,7 @@
 ## Charge de travail et difficultés
 
 ### Membre A – COLY Ousmane
-- Temps passé : à compléter
+- Temps passé : environ 6 heures (lecture du sujet, installation, organisation Git/GitHub, ingestion et validation, tests, relecture de la partie 3, documentation)
 - Difficultés :
   - `users.json` : Spark infère `age` en `Long` alors que la case class attend un `Int`, et `.as[User]`
     refuse la conversion. Résolu en imposant un schéma explicite à la lecture du JSON.
