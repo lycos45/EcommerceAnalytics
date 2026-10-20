@@ -3,9 +3,9 @@ version := "1.0.0"
 organization := "com.ecommerce"
 
 // Spark 4.x est compile pour Scala 2.13
-scalaVersion := "2.13.16"
+scalaVersion := "2.13.18"
 
-val sparkVersion = "4.0.1"
+val sparkVersion = "4.2.0"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
@@ -35,6 +35,8 @@ run / fork := true
 run / javaOptions ++= sparkJavaOpts
 Test / fork := true
 Test / javaOptions ++= sparkJavaOpts
+// une seule SparkSession a la fois pendant les tests
+Test / parallelExecution := false
 
 Compile / mainClass := Some("com.ecommerce.analytics.MainApp")
 
