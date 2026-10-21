@@ -23,6 +23,7 @@ class DataValidation(spark: SparkSession) {
   // Seuils lus dans application.conf
   private val minAmount       = ConfigLoader.getDouble("app.validation.transaction.min-amount", 0.0)
   private val timestampLength = ConfigLoader.getInt("app.validation.transaction.timestamp-length", 14)
+  private val timestampFormat = ConfigLoader.getString("app.validation.transaction.timestamp-format", "yyyyMMddHHmmss")
   private val minAge          = ConfigLoader.getInt("app.validation.user.min-age", 16)
   private val maxAge          = ConfigLoader.getInt("app.validation.user.max-age", 100)
   private val minIncome       = ConfigLoader.getDouble("app.validation.user.min-income", 0.0)
@@ -50,7 +51,10 @@ class DataValidation(spark: SparkSession) {
       when(col("amount").isNull, lit("amount manquant")),
       when(col("amount") <= minAmount, lit(s"amount <= $minAmount")),
       when(col("timestamp").isNull, lit("timestamp manquant")),
-      when(length(col("timestamp")) =!= timestampLength, lit(s"timestamp different de $timestampLength caracteres"))
+      when(length(col("timestamp")) =!= timestampLength, lit(s"timestamp different de $timestampLength caracteres")),
+      // bonne longueur mais date impossible (ex : mois 13), remarque de relecture de Kanny
+      when(length(col("timestamp")) === timestampLength &&
+        try_to_timestamp(col("timestamp"), lit(timestampFormat)).isNull, lit("timestamp invalide"))
     ))
 
   def validateUsers(ds: Dataset[User]): ValidationResult[User] =
