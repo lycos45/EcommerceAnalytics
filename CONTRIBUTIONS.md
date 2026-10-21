@@ -12,6 +12,7 @@
 | 2.2 Validation | A | B |
 | 2.3 Gestion d'erreurs | A | B |
 | 2.4 Rapport qualité | A | B |
+| 2.5 Intégrité référentielle (bonus) | A | B |
 | 3.1 UDF extractTimeFeatures | B | A |
 | 3.2 enrichTransactionData | B | A |
 | 3.3 Fenêtrage | B | A |
