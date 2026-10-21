@@ -74,7 +74,9 @@ sbt run
 ```
 
 Les résultats sont écrits dans le dossier `output/` (CSV et Parquet). Le rapport de qualité des
-données se trouve dans `output/quality_report/`.
+données se trouve dans `output/quality_report/` : par dataset, lignes lues / valides / rejetées,
+taux de rejet, valeurs nulles, et pour les transactions le nombre de références orphelines
+(user_id, product_id, merchant_id absents du référentiel).
 
 ## Déploiement avec spark-submit
 
