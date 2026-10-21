@@ -4,7 +4,7 @@
 |--------|------------|--------|------------------------|
 | A | COLY Ousmane | ousmanecoly543@gmail.com | ousmane coly |
 | B | CISSOKO Djely Kanny | djelykannycissoko3@gmail.com | Djely Kanny CISSOKO  |
-| C | À compléter | À compléter | À compléter |
+| C | Bamba FALL | fbamba99@gmail.com | Bamba Fall|
 
 ## Rôles et questions traitées
 
@@ -18,7 +18,7 @@
 - Partie 3 : 3.1 UDF extractTimeFeatures, 3.2 enrichTransactionData, 3.3 fenêtrage, 3.4 transactions suspectes (bonus)
 - Fichiers : `TimeFeatures.scala`, `DataTransformation.scala`
 
-### Membre C – Analytics & Performance Engineer
+### Membre C – Analytics & Performance Engineer (Bamba FALL)
 - Partie 4 : 4.1 KPI marchands, 4.2 cohortes
 - Partie 5 : 5.1 stockage, 5.2 jointures
 - Partie 6 : 6.1 application principale
