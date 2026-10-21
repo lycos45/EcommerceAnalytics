@@ -32,6 +32,8 @@ val sparkJavaOpts = Seq(
 )
 
 run / fork := true
+// sinon sbt affiche tout ce que Spark ecrit sur stderr avec le prefixe [error]
+run / outputStrategy := Some(StdoutOutput)
 run / javaOptions ++= sparkJavaOpts
 Test / fork := true
 Test / javaOptions ++= sparkJavaOpts
