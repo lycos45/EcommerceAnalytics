@@ -28,13 +28,14 @@ class DataValidationTest extends AnyFunSuite with BeforeAndAfterAll {
       tx("zero", Some(0.0), "20240701021822"),
       tx("sans_montant", None, "20240701021822"),
       tx("ts_court", Some(5.0), "20240701"),
-      tx("ts_null", Some(5.0), null)
+      tx("ts_null", Some(5.0), null),
+      tx("ts_impossible", Some(5.0), "20241399250000")
     ).toDS()
 
     val res = validation.validateTransactions(ds)
 
     assert(res.valid.map(_.transaction_id).collect().toSeq == Seq("ok"))
-    assert(res.rejected.count() == 5)
+    assert(res.rejected.count() == 6)
     assert(res.rejected.columns.contains("rejection_reason"))
 
     val reason = res.rejected.filter($"transaction_id" === "ts_court").select("rejection_reason").as[String].first()
