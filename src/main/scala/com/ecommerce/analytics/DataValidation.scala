@@ -105,12 +105,21 @@ class DataValidation(spark: SparkSession) {
 
   def saveQualityReport(report: DataFrame, outputPath: String = ConfigLoader.outputPath): Unit = {
     val target = s"${outputPath.stripSuffix("/")}/quality_report"
-    report.coalesce(1)
-      .write
-      .mode("overwrite")
-      .option("header", "true")
-      .csv(target)
-    println(s"[validation] rapport de qualite ecrit dans $target")
+    try {
+      report.coalesce(1)
+        .write
+        .mode("overwrite")
+        .option("header", "true")
+        .csv(target)
+      println(s"[validation] rapport de qualite ecrit dans $target")
+    } catch {
+      // Sous Windows sans hadoop.dll, Spark lit les fichiers mais ne peut pas ecrire.
+      // C'est une Error (pas une Exception) : on la transforme pour que l'appelant puisse la gerer.
+      case e: UnsatisfiedLinkError =>
+        throw new IllegalStateException(
+          s"Ecriture impossible dans $target : winutils.exe / hadoop.dll manquants ou incompatibles " +
+            "(voir la section Prerequis du README)", e)
+    }
   }
 
   // Valide les 4 datasets, affiche les compteurs et produit le rapport de qualite
