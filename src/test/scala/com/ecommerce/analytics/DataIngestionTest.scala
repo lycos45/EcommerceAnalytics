@@ -54,6 +54,11 @@ class DataIngestionTest extends AnyFunSuite with BeforeAndAfterAll {
 
     assert(taux.keySet == Set("transactions", "users", "products", "merchants"))
     assert(taux.values.forall(_ > 0.0), s"un taux de rejet a 0 % : $taux")
+
+    // Q2.5 : le jeu de donnees contient des references orphelines (cf. sujet)
+    val tx = validated.qualityReport.filter("dataset = 'transactions'").first()
+    Seq("nb_user_id_orphelins", "nb_product_id_orphelins", "nb_merchant_id_orphelins")
+      .foreach(c => assert(tx.getAs[Long](c) > 0, s"$c devrait etre > 0"))
   }
 
   // demande winutils.exe / hadoop.dll sous Windows (voir README)

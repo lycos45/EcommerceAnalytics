@@ -104,6 +104,32 @@ class DataValidationTest extends AnyFunSuite with BeforeAndAfterAll {
       "dataset", "nb_lignes_lues", "nb_lignes_valides", "nb_lignes_rejetees", "taux_rejet", "nb_valeurs_nulles"))
   }
 
+  test("references orphelines : transactions vers un user, produit ou marchand inexistant") {
+    import spark.implicits._
+    def t(id: String, u: String, p: String, m: String) =
+      Transaction(id, u, p, m, Some(10.0), "20240701021822", "Paris", "CARD", "Books")
+
+    val raw = RawData(
+      transactions = Seq(
+        t("ok", "U1", "P1", "M1"),
+        t("user_inconnu", "U9", "P1", "M1"),
+        t("produit_inconnu", "U1", "P9", "M1"),
+        t("tout_inconnu", "U9", "P9", "M9")
+      ).toDS(),
+      users = Seq(User("U1", Some(30), Some(1000.0), "Lyon", "Standard", Seq("Books"), "20230101")).toDS(),
+      products = Seq(Product("P1", "nom", "Books", Some(5.0), "M1", Some(4.0), Some(1))).toDS(),
+      merchants = Seq(Merchant("M1", "Shop", "Books", "Bretagne", Some(0.1), "20220101")).toDS()
+    )
+
+    assert(validation.countOrphans(raw) == OrphanCounts(users = 2, products = 2, merchants = 1))
+
+    val report = validation.buildQualityReport(
+      Seq(("transactions", 4L, 4L, 0L, 0L), ("users", 1L, 1L, 0L, 0L)), Some(OrphanCounts(2, 2, 1)))
+    val parDataset = report.collect().map(r => r.getString(0) -> r.getAs[Any]("nb_user_id_orphelins")).toMap
+    assert(parDataset("transactions") == 2L)
+    assert(parDataset("users") == null)
+  }
+
   test("countNulls compte les nulls de toutes les colonnes") {
     import spark.implicits._
     val df = Seq[(String, Option[Int])](("a", Some(1)), (null, None), ("c", None)).toDF("x", "y")
