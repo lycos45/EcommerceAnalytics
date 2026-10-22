@@ -1,18 +1,29 @@
 package com.ecommerce.analytics
 
-import com.ecommerce.utils.SparkSessionBuilder
+import com.ecommerce.utils.{ConfigLoader, SparkSessionBuilder}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 
-// Tests sur les vrais fichiers de src/main/resources/data
+import java.io.File
+
+// Tests d'integration sur les vrais fichiers de src/main/resources/data.
+// Les tests unitaires des regles sont dans DataValidationTest.
 class DataIngestionTest extends AnyFunSuite with BeforeAndAfterAll {
 
   private lazy val spark     = SparkSessionBuilder.build()
   private lazy val ingestion = new DataIngestion(spark)
 
+  // si les donnees ne sont pas la, les tests sont annules (canceled) au lieu d'echouer
+  private def requireData(): Unit = {
+    val paths = Seq(ConfigLoader.transactionsPath, ConfigLoader.usersPath,
+      ConfigLoader.productsPath, ConfigLoader.merchantsPath)
+    assume(paths.forall(p => new File(p).exists()), s"fichiers de donnees absents : $paths")
+  }
+
   override def afterAll(): Unit = spark.stop()
 
   test("les 4 fichiers sont lus avec le bon nombre de lignes") {
+    requireData()
     val raw = ingestion.loadAll()
     assert(raw.merchants.count() == 600)
     assert(raw.users.count() == 12000)
@@ -21,6 +32,7 @@ class DataIngestionTest extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("les types sont corrects apres lecture") {
+    requireData()
     val users = ingestion.readUsers()
     assert(users.schema("age").dataType.typeName == "integer")
     assert(users.schema("preferred_categories").dataType.typeName == "array")
@@ -36,15 +48,28 @@ class DataIngestionTest extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("la validation rejette des lignes sur chaque dataset") {
+    requireData()
     val validated = new DataValidation(spark).validateAll(ingestion.loadAll())
     val taux = validated.qualityReport.collect().map(r => r.getString(0) -> r.getAs[Double]("taux_rejet")).toMap
 
     assert(taux.keySet == Set("transactions", "users", "products", "merchants"))
     assert(taux.values.forall(_ > 0.0), s"un taux de rejet a 0 % : $taux")
 
-    // le rapport doit pouvoir etre relu depuis le CSV ecrit
-    new DataValidation(spark).saveQualityReport(validated.qualityReport, "target/test-output")
+    // Q2.5 : le jeu de donnees contient des references orphelines (cf. sujet)
+    val tx = validated.qualityReport.filter("dataset = 'transactions'").first()
+    Seq("nb_user_id_orphelins", "nb_product_id_orphelins", "nb_merchant_id_orphelins")
+      .foreach(c => assert(tx.getAs[Long](c) > 0, s"$c devrait etre > 0"))
+  }
+
+  // demande winutils.exe / hadoop.dll sous Windows (voir README)
+  test("le rapport de qualite est ecrit en CSV et peut etre relu") {
+    import spark.implicits._
+    val validation = new DataValidation(spark)
+    val report = validation.buildQualityReport(Seq(("test", 10L, 8L, 2L, 1L)))
+
+    validation.saveQualityReport(report, "target/test-output")
     val relu = spark.read.option("header", "true").csv("target/test-output/quality_report")
-    assert(relu.count() == 4)
+    assert(relu.count() == 1)
+    assert(relu.select("taux_rejet").as[String].first() == "20.0")
   }
 }

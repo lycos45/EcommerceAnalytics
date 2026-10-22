@@ -12,6 +12,7 @@
 | 2.2 Validation | A | B |
 | 2.3 Gestion d'erreurs | A | B |
 | 2.4 Rapport qualité | A | B |
+| 2.5 Intégrité référentielle (bonus) | A | B |
 | 3.1 UDF extractTimeFeatures | B | A |
 | 3.2 enrichTransactionData | B | A |
 | 3.3 Fenêtrage | B | A |
@@ -45,9 +46,11 @@
   - Gérer les valeurs nulles et les timestamps invalides dans l'UDF.
 
 ### Membre C
-- Temps passé : à compléter
-- Difficultés :
-  - à compléter
+- Temps passé : environ 7 heures (lecture du sujet, SparkOptimizations, Analytics, MainApp, tests, intégration, documentation)
+- Points d'attention identifiés dès la conception :
+  - Le CSV ne supporte pas les colonnes de type tableau (ex. `preferred_categories`) : les lignes rejetées sont donc écrites en Parquet, et le CSV est réservé aux résultats agrégés
+  - Le cache est paresseux : il ne se remplit qu'au premier « action ». Résolu avec un `count()` qui force la matérialisation à un endroit connu
+  - Cohortes : calcul du `period_index` en mois et cas des cohortes trop récentes qui n'ont pas encore atteint la période 3.
 
 ## Décisions techniques du groupe
 
@@ -86,7 +89,19 @@
    - « Utilisateur actif » : `collect_set` des jours sur 7 jours glissants, au moins 5 jours distincts.
    - « Dépasse de plus de 300 % » signifie : montant supérieur à 4 fois le panier moyen de l'utilisateur.
 
-7. **Format de sortie** : à compléter par C.
+7. **Format de sortie : CSV et Parquet**
+    Les résultats agrégés (KPI marchands, rétention, matrice, meilleure cohorte) sont écrits en CSV (un seul fichier avec en-tête, lisible par l'équipe métier) et en Parquet (typé et compact, pour une reprise par d'autres traitements Spark). Les lignes rejetées sont écrites en Parquet uniquement, car le CSV ne gère pas les colonnes de type tableau. Le rapport de qualité reste en CSV.
+
+8. **Stratégie de cache (Q5.1)**
+   `persist(MEMORY_AND_DISK_SER)` sur les transactions valides (la plus grosse table, environ 136 000 lignes : stockage sérialisé avec débordement sur disque) et `cache()` sur le DataFrame enrichi (lu par les KPI marchands, les cohortes et l'écriture). Le cache est matérialisé par un `count()` pour payer le calcul une seule fois, et libéré par `unpersist` dans le `finally` de `MainApp`, le tout pilotépar `enable-cache`.
+
+9. **Broadcast et partitions (Q5.2)**
+   `broadcast()` est appliqué dans `DataTransformation` sur `users`, `products` et `merchants` (Kany), et dans `Analytics` sur la table des tailles de cohorte via
+   `SparkOptimizations.broadcastIfEnabled`, toujours selon `enable-broadcast`.
+   `spark.sql.shuffle.partitions` (8) vient de `application.conf`, appliqué dans `SparkSessionBuilder`.
+
+10. **Choix d'analytique (Partie 4)**
+    Les marchands inconnus (`merchant_name` nul) sont exclus des KPI. Le classement par catégorie et par région est calculé sur le tableau déjà agrégé par marchand. La "meilleure cohorte à 3 mois" ne considère que les cohortes qui ont des actifs à la période 3 (les plus récentes sont donc exclues), avec la taille de cohorte comme critère de départage.
 
 ## Relectures croisées
 
@@ -95,3 +110,5 @@
 | 2026-10-18 | Partie 3 : TimeFeatures, DataTransformation (PR #1) | B – CISSOKO Djely Kanny | A – COLY Ousmane | Testé avec l'ingestion et la validation sur les données réelles (136 157 transactions enrichies, tests TimeFeatures OK). Correction demandée : `to_timestamp` plante en mode ANSI sur une date impossible, remplacer par `try_to_timestamp`. Remarques : clés `app.analytics.*` à ajouter dans application.conf, broadcast déjà fait ici (à signaler pour la 5.2). |
 | 2026-10-20 | Partie 3 : correction (PR #1) | B – CISSOKO Djely Kanny | A – COLY Ousmane | Correction vérifiée : une date impossible ne fait plus échouer le job. PR fusionnée dans main. |
 | 2026-10-20 | Parties 1, 2 et 7 : DataIngestion, DataValidation, rapport qualité, tests (PR #2) | A - COLY Ousmane | B - CISSOKO Djely Kanny | Approuvée et fusionnée. DataValidationTest 7/7 OK ; DataIngestionTest avorte sous Windows (winutils.exe et hadoop.dll manquants), limite d'environnement et non bug de logique. Remarques non bloquantes : la validation du timestamp ne vérifie que la longueur (14) ; safeLoad n'attrape pas UnsatisfiedLinkError ; les tests dépendent des vrais fichiers de données. |
+| 2026-10-21 | Parties 5 et 6 : SparkOptimizations, MainApp (PR #5) | C – Bamba Fall | A – COLY Ousmane | Testé fusionné avec main : 31 tests OK, `sbt run` OK, JAR assembly + spark-submit OK. Cache / persist / unpersist en place et libérés dans le `finally`, broadcast piloté par `enable-broadcast`, `shuffle.partitions` lu dans la config. MainApp : gestion d'erreurs globale avec arrêt de la SparkSession, durée de chaque étape, sorties CSV + Parquet complètes. Rien de bloquant. Suite : logs Spark réduits (log4j2.properties) pour une console lisible pendant la démo. |
+| 2026-10-21 | Parties 1 et 7 : structure SBT, build.sbt, README, application.conf | A – COLY Ousmane | C – Bamba Fall| Aucun point bloquant : structure conforme, `.gitignore` complet, assembly justifié, valeurs par défaut dans `ConfigLoader`, README complet. Remarque : `SparkSessionBuilder` appelle `.master(ConfigLoader.sparkMaster)`, ce qui l'emporte sur `--master` de `spark-submit` (l'exemple YARN du README s'exécuterait en local). Suggestion : ne définir le master que s'il est explicitement configuré. |

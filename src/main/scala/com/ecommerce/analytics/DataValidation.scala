@@ -8,6 +8,9 @@ import org.apache.spark.sql.{Column, DataFrame, Dataset, Encoder, SparkSession}
 // Resultat d'une validation : les lignes gardees et les lignes rejetees (avec la raison)
 case class ValidationResult[T](valid: Dataset[T], rejected: DataFrame)
 
+// Q2.5 : nombre de transactions qui pointent vers un id inexistant
+case class OrphanCounts(users: Long, products: Long, merchants: Long)
+
 case class ValidatedData(
   transactions: ValidationResult[Transaction],
   users: ValidationResult[User],
@@ -23,6 +26,7 @@ class DataValidation(spark: SparkSession) {
   // Seuils lus dans application.conf
   private val minAmount       = ConfigLoader.getDouble("app.validation.transaction.min-amount", 0.0)
   private val timestampLength = ConfigLoader.getInt("app.validation.transaction.timestamp-length", 14)
+  private val timestampFormat = ConfigLoader.getString("app.validation.transaction.timestamp-format", "yyyyMMddHHmmss")
   private val minAge          = ConfigLoader.getInt("app.validation.user.min-age", 16)
   private val maxAge          = ConfigLoader.getInt("app.validation.user.max-age", 100)
   private val minIncome       = ConfigLoader.getDouble("app.validation.user.min-income", 0.0)
@@ -50,7 +54,10 @@ class DataValidation(spark: SparkSession) {
       when(col("amount").isNull, lit("amount manquant")),
       when(col("amount") <= minAmount, lit(s"amount <= $minAmount")),
       when(col("timestamp").isNull, lit("timestamp manquant")),
-      when(length(col("timestamp")) =!= timestampLength, lit(s"timestamp different de $timestampLength caracteres"))
+      when(length(col("timestamp")) =!= timestampLength, lit(s"timestamp different de $timestampLength caracteres")),
+      // bonne longueur mais date impossible (ex : mois 13), remarque de relecture de Kanny
+      when(length(col("timestamp")) === timestampLength &&
+        try_to_timestamp(col("timestamp"), lit(timestampFormat)).isNull, lit("timestamp invalide"))
     ))
 
   def validateUsers(ds: Dataset[User]): ValidationResult[User] =
@@ -92,21 +99,69 @@ class DataValidation(spark: SparkSession) {
     (name, nbRead, nbValid, nbRejected, countNulls(raw))
   }
 
-  def buildQualityReport(lines: Seq[(String, Long, Long, Long, Long)]): DataFrame =
-    lines.toDF("dataset", "nb_lignes_lues", "nb_lignes_valides", "nb_lignes_rejetees", "nb_valeurs_nulles")
+  /*
+   * Q2.5 (bonus) : transactions dont le user_id, product_id ou merchant_id n'existe pas
+   * dans le referentiel correspondant. On compare les donnees brutes : un utilisateur
+   * rejete a la validation existe quand meme, ce n'est pas une reference orpheline.
+   */
+  def countOrphans(raw: RawData): OrphanCounts = {
+    val tx = raw.transactions.toDF()
+
+    // les referentiels sont petits : broadcast si l'option est active
+    def orphans(key: String, ref: DataFrame): Long = {
+      val ids = ref.select(key).distinct()
+      tx.filter(col(key).isNotNull)
+        .join(if (ConfigLoader.enableBroadcast) broadcast(ids) else ids, Seq(key), "left_anti")
+        .count()
+    }
+
+    val counts = OrphanCounts(
+      orphans("user_id", raw.users.toDF()),
+      orphans("product_id", raw.products.toDF()),
+      orphans("merchant_id", raw.merchants.toDF())
+    )
+    println(s"[validation] references orphelines : user_id=${counts.users}, " +
+      s"product_id=${counts.products}, merchant_id=${counts.merchants}")
+    counts
+  }
+
+  def buildQualityReport(lines: Seq[(String, Long, Long, Long, Long)],
+                         orphans: Option[OrphanCounts] = None): DataFrame = {
+    val report = lines.toDF("dataset", "nb_lignes_lues", "nb_lignes_valides", "nb_lignes_rejetees", "nb_valeurs_nulles")
       .withColumn("taux_rejet",
         when(col("nb_lignes_lues") > 0, round(col("nb_lignes_rejetees") * 100.0 / col("nb_lignes_lues"), 2))
           .otherwise(lit(0.0)))
       .select("dataset", "nb_lignes_lues", "nb_lignes_valides", "nb_lignes_rejetees", "taux_rejet", "nb_valeurs_nulles")
 
+    // les compteurs d'orphelins ne concernent que la ligne transactions (null pour les autres)
+    orphans match {
+      case Some(o) =>
+        def onTransactions(n: Long) = when(col("dataset") === "transactions", lit(n)).cast("long")
+        report
+          .withColumn("nb_user_id_orphelins", onTransactions(o.users))
+          .withColumn("nb_product_id_orphelins", onTransactions(o.products))
+          .withColumn("nb_merchant_id_orphelins", onTransactions(o.merchants))
+      case None => report
+    }
+  }
+
   def saveQualityReport(report: DataFrame, outputPath: String = ConfigLoader.outputPath): Unit = {
     val target = s"${outputPath.stripSuffix("/")}/quality_report"
-    report.coalesce(1)
-      .write
-      .mode("overwrite")
-      .option("header", "true")
-      .csv(target)
-    println(s"[validation] rapport de qualite ecrit dans $target")
+    try {
+      report.coalesce(1)
+        .write
+        .mode("overwrite")
+        .option("header", "true")
+        .csv(target)
+      println(s"[validation] rapport de qualite ecrit dans $target")
+    } catch {
+      // Sous Windows sans hadoop.dll, Spark lit les fichiers mais ne peut pas ecrire.
+      // C'est une Error (pas une Exception) : on la transforme pour que l'appelant puisse la gerer.
+      case e: UnsatisfiedLinkError =>
+        throw new IllegalStateException(
+          s"Ecriture impossible dans $target : winutils.exe / hadoop.dll manquants ou incompatibles " +
+            "(voir la section Prerequis du README)", e)
+    }
   }
 
   // Valide les 4 datasets, affiche les compteurs et produit le rapport de qualite
@@ -121,7 +176,7 @@ class DataValidation(spark: SparkSession) {
       reportLine("users", raw.users.toDF(), users),
       reportLine("products", raw.products.toDF(), products),
       reportLine("merchants", raw.merchants.toDF(), merchants)
-    ))
+    ), Some(countOrphans(raw)))
 
     println("\n===== Rapport de qualite des donnees =====")
     report.show(truncate = false)

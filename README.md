@@ -61,9 +61,16 @@ Spark est déclaré en `provided` : il n'est pas inclus dans le JAR, c'est `spar
 sbt test
 ```
 
-Les tests de `DataIngestionTest` utilisent les vrais fichiers de `src/main/resources/data`
-(nombre de lignes, types, rejet non nul à la validation, écriture du rapport de qualité).
-`DataValidationTest` vérifie chaque règle de validation sur de petits jeux de données.
+| Fichier de test | Ce qui est vérifié |
+|-----------------|--------------------|
+| `DataValidationTest` | chaque règle de validation, le rapport de qualité, les références orphelines |
+| `DataIngestionTest` | lecture des vrais fichiers (nombre de lignes, types), rejet non nul, écriture du rapport |
+| `TimeFeaturesSpec` | UDF `extractTimeFeatures`, y compris les entrées nulles ou mal formées |
+| `AnalyticsTest` | KPI marchands, cohortes, matrice de rétention, meilleure cohorte |
+| `SparkOptimizationsTest` | cache, persist, unpersist, broadcast |
+
+`DataIngestionTest` utilise les fichiers de `src/main/resources/data` : s'ils sont absents, ses tests
+sont marqués « canceled » au lieu d'échouer.
 
 ## Exécution locale
 
@@ -73,12 +80,33 @@ Depuis la racine du projet :
 sbt run
 ```
 
-Les résultats sont écrits dans le dossier `output/` (CSV et Parquet). Le rapport de qualité des
-données se trouve dans `output/quality_report/`.
+Le pipeline enchaîne ingestion → validation → transformation → analytique → écriture, affiche les
+résultats dans la console et la durée de chaque étape (environ 2 minutes en local).
+
+Résultats produits dans `output/` :
+
+```
+output/
+├── quality_report/          rapport de qualité des données (CSV)
+├── csv/                     un fichier CSV avec en-tête par résultat
+│   ├── kpi_marchands/
+│   ├── retention_cohortes/
+│   ├── matrice_retention/
+│   └── meilleure_cohorte_3_mois/
+├── parquet/                 les mêmes résultats en Parquet
+└── rejected/                lignes rejetées par la validation, avec rejection_reason (Parquet)
+    ├── transactions/  users/  products/  merchants/
+```
+
+Le rapport de qualité donne, par dataset : lignes lues / valides / rejetées, taux de rejet, valeurs
+nulles, et pour les transactions le nombre de références orphelines (user_id, product_id,
+merchant_id absents du référentiel).
+
+Les logs de Spark sont limités aux avertissements (`src/main/resources/log4j2.properties`).
 
 ## Déploiement avec spark-submit
 
-En local :
+En local, depuis la racine du projet (les chemins des données sont relatifs) :
 
 ```
 spark-submit \
@@ -86,6 +114,8 @@ spark-submit \
   --master local[*] \
   target/scala-2.13/ecommerce-analytics.jar
 ```
+
+Le `--master` passé à spark-submit est prioritaire sur celui de `application.conf`.
 
 Sur un cluster (exemple YARN) :
 
