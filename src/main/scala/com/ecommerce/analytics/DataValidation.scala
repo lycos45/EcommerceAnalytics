@@ -105,7 +105,10 @@ class DataValidation(spark: SparkSession) {
    * rejete a la validation existe quand meme, ce n'est pas une reference orpheline.
    */
   def countOrphans(raw: RawData): OrphanCounts = {
-    val tx = raw.transactions.toDF()
+    // Les 3 comptages lisent les memes colonnes : on les garde en memoire le temps du calcul
+    // au lieu de relire le CSV trois fois (remarque de relecture de Kanny)
+    val tx = raw.transactions.select("user_id", "product_id", "merchant_id")
+    if (ConfigLoader.enableCache) tx.cache()
 
     // les referentiels sont petits : broadcast si l'option est active
     def orphans(key: String, ref: DataFrame): Long = {
@@ -115,11 +118,13 @@ class DataValidation(spark: SparkSession) {
         .count()
     }
 
-    val counts = OrphanCounts(
-      orphans("user_id", raw.users.toDF()),
-      orphans("product_id", raw.products.toDF()),
-      orphans("merchant_id", raw.merchants.toDF())
-    )
+    val counts =
+      try OrphanCounts(
+        orphans("user_id", raw.users.toDF()),
+        orphans("product_id", raw.products.toDF()),
+        orphans("merchant_id", raw.merchants.toDF())
+      )
+      finally tx.unpersist()
     println(s"[validation] references orphelines : user_id=${counts.users}, " +
       s"product_id=${counts.products}, merchant_id=${counts.merchants}")
     counts
